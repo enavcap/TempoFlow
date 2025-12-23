@@ -48,7 +48,6 @@ TempoFlow does not integrate with or use any third-party services, including:
 ## Permissions
 
 The app may request the following device permissions:
-- **Vibration**: Used for haptic feedback during metronome beats (optional)
 - **Audio**: Required to play metronome sounds
 
 These permissions are used solely for app functionality and do not result in any data collection.

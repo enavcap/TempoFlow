@@ -90,7 +90,7 @@ const tourStepsData: TourStep[] = [
   },
   {
     title: "Options Dialog",
-    description: "Inside the App Actions Menu, 'Options' lets you change theme, sounds (now defaults to Digital Beeps), haptics, and repeat this tour.",
+    description: "Inside the App Actions Menu, 'Options' lets you change theme, sounds (now defaults to Digital Beeps), and repeat this tour.",
     targetElementSelector: "#options-button",
     shouldCenterDialog: true,
   },
@@ -130,8 +130,6 @@ const OptionsDialogContent: React.FC<OptionsDialogContentProps> = ({ onRequestTo
   const {
     selectedSoundSetId, setSelectedSoundSetId,
     selectedPrecountSoundSetId, setSelectedPrecountSoundSetId,
-    isVibrationEnabled, setIsVibrationEnabled,
-    isDebugVisible, setIsDebugVisible,
   } = useTempoFlow();
   const isMobile = useIsMobile();
   const { setTheme } = useTheme();
@@ -146,8 +144,6 @@ const OptionsDialogContent: React.FC<OptionsDialogContentProps> = ({ onRequestTo
     setTheme('dark');
     setSelectedSoundSetId(DEFAULT_SOUND_SET_ID);
     setSelectedPrecountSoundSetId(DEFAULT_PRECOUNT_SOUND_SET_ID);
-    setIsVibrationEnabled(false);
-    setIsDebugVisible(false);
     toast({
       title: "Options Reset",
       description: "Display and sound settings have been reset to defaults.",
@@ -218,36 +214,6 @@ const OptionsDialogContent: React.FC<OptionsDialogContentProps> = ({ onRequestTo
           </Select>
         </div>
 
-        {hasMounted && isMobile && (
-          <div className="flex flex-col space-y-2">
-             <h3 className="text-sm font-medium text-muted-foreground">Haptics</h3>
-            <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
-              <Label htmlFor="vibration-mode" className="text-sm">
-                Vibration Mode
-              </Label>
-              <Switch
-                id="vibration-mode"
-                checked={isVibrationEnabled}
-                onCheckedChange={setIsVibrationEnabled}
-                aria-label="Toggle vibration mode"
-              />
-            </div>
-          </div>
-        )}
-        <div className="flex flex-col space-y-2">
-          <h3 className="text-sm font-medium text-muted-foreground">Developer</h3>
-          <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
-            <Label htmlFor="debug-mode" className="text-sm">
-              Show Debug Overlay
-            </Label>
-            <Switch
-              id="debug-mode"
-              checked={isDebugVisible}
-              onCheckedChange={setIsDebugVisible}
-              aria-label="Toggle debug overlay"
-            />
-          </div>
-        </div>
          <div className="flex flex-col space-y-2">
           <h3 className="text-sm font-medium text-muted-foreground">Application Tour</h3>
           <Button variant="outline" onClick={handleRepeatTour} className="w-full sm:w-auto">

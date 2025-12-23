@@ -2,7 +2,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState, useMemo, startTransition } from 'react';
-import DebugOverlay from './debug-overlay';
 import { Play, Pause, Repeat, Square, Volume, Volume1, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTempoFlow } from '@/contexts/tempo-flow-context';
@@ -61,8 +60,6 @@ const PlaybackControls: React.FC = () => {
     currentMeasure, setCurrentMeasure,
     currentSubdivisionTick, setCurrentSubdivisionTick,
     resetPlaybackPosition,
-    isVibrationEnabled,
-    isDebugVisible,
     isPrecountEnabled, setIsPrecountEnabled,
     precountBars, setPrecountBars,
     isCurrentlyPrecounting, setIsCurrentlyPrecounting,
@@ -657,13 +654,6 @@ const PlaybackControls: React.FC = () => {
         nextTickTimeRef.current += subdivisionDurationMs;
       }
       
-      // Vibration feedback
-      if (isMobile && isVibrationEnabled && 
-          ((currentIsPrecounting && precountProgressRef.current.tick === 0) || 
-           (!currentIsPrecounting && currentSubdivisionVal === 0))) {
-        if (typeof navigator.vibrate === 'function') navigator.vibrate(50);
-      }
-      
       // Calculate delay for next tick with drift compensation
       const delay = Math.max(0, nextTickTimeRef.current - performance.now());
       timeoutRef.current = setTimeout(scheduleTick, delay);
@@ -681,7 +671,7 @@ const PlaybackControls: React.FC = () => {
       }
     };
   }, [
-    isPlaying, isMobile, isVibrationEnabled, setIsPlaying
+    isPlaying, isMobile, setIsPlaying
   ]);
 
 
@@ -964,7 +954,6 @@ const PlaybackControls: React.FC = () => {
           {showVolumeIndicator && <VolumeIndicator volume={volume} visible={showVolumeIndicator} />}
         </div>
       </div>
-      {isDebugVisible && <DebugOverlay />}
     </div>
   );
 };

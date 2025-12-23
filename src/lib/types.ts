@@ -114,12 +114,6 @@ export interface TempoFlowContextType {
   selectedPrecountSoundSetId: string;
   setSelectedPrecountSoundSetId: Dispatch<SetStateAction<string>>;
 
-  isVibrationEnabled: boolean;
-  setIsVibrationEnabled: Dispatch<SetStateAction<boolean>>;
-
-  isDebugVisible: boolean;
-  setIsDebugVisible: Dispatch<SetStateAction<boolean>>;
-
   isPrecountEnabled: boolean;
   setIsPrecountEnabled: Dispatch<SetStateAction<boolean>>;
   precountBars: number; 

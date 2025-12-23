@@ -56,10 +56,6 @@ export const TempoFlowProvider = ({ children }: { children: ReactNode }) => {
   
   const [selectedSoundSetId, setSelectedSoundSetId] = useState<string>(DEFAULT_SOUND_SET_ID);
   const [selectedPrecountSoundSetId, setSelectedPrecountSoundSetId] = useState<string>(DEFAULT_PRECOUNT_SOUND_SET_ID);
-  
-  const [isVibrationEnabled, setIsVibrationEnabled] = useState<boolean>(false);
-
-  const [isDebugVisible, setIsDebugVisible] = useState<boolean>(false);
 
   const [isPrecountEnabled, setIsPrecountEnabled] = useState<boolean>(false); 
   const [precountBars, setPrecountBars] = useState<number>(1);
@@ -208,12 +204,6 @@ export const TempoFlowProvider = ({ children }: { children: ReactNode }) => {
       else setSelectedPrecountSoundSetId(DEFAULT_PRECOUNT_SOUND_SET_ID);
 
 
-      const storedVibrationEnabled = localStorage.getItem('tempoFlowVibrationEnabled');
-      setIsVibrationEnabled(storedVibrationEnabled === 'true');
-
-      const storedDebugVisible = localStorage.getItem('tempoFlowDebugVisible');
-      setIsDebugVisible(storedDebugVisible === 'true');
-
       const storedPrecountEnabled = localStorage.getItem('tempoFlowPrecountEnabled');
       setIsPrecountEnabled(storedPrecountEnabled === 'true'); 
       const storedPrecountBars = localStorage.getItem('tempoFlowPrecountBars');
@@ -286,18 +276,6 @@ export const TempoFlowProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem('tempoFlowPrecountSoundSetId', selectedPrecountSoundSetId);
     }
   }, [selectedPrecountSoundSetId]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('tempoFlowVibrationEnabled', String(isVibrationEnabled));
-    }
-  }, [isVibrationEnabled]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('tempoFlowDebugVisible', String(isDebugVisible));
-    }
-  }, [isDebugVisible]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -574,8 +552,6 @@ export const TempoFlowProvider = ({ children }: { children: ReactNode }) => {
       resetPlaybackPosition,
       selectedSoundSetId, setSelectedSoundSetId,
       selectedPrecountSoundSetId, setSelectedPrecountSoundSetId,
-      isVibrationEnabled, setIsVibrationEnabled,
-      isDebugVisible, setIsDebugVisible,
       isPrecountEnabled, setIsPrecountEnabled,
       precountBars, setPrecountBars,
       isCurrentlyPrecounting, setIsCurrentlyPrecounting,
@@ -619,8 +595,6 @@ export const useSafeTempoFlow = () => {
       resetPlaybackPosition: () => {},
       selectedSoundSetId: DEFAULT_SOUND_SET_ID, setSelectedSoundSetId: () => {},
       selectedPrecountSoundSetId: DEFAULT_PRECOUNT_SOUND_SET_ID, setSelectedPrecountSoundSetId: () => {},
-      isVibrationEnabled: false, setIsVibrationEnabled: () => {},
-      isDebugVisible: false, setIsDebugVisible: () => {},
       isPrecountEnabled: false, setIsPrecountEnabled: () => {},
       precountBars: 1, setPrecountBars: () => {},
       isCurrentlyPrecounting: false, setIsCurrentlyPrecounting: () => {},
