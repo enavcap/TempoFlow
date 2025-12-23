@@ -60,6 +60,9 @@ android/.gradle/
 !builds/*.apk
 !builds/*.aab
 local.properties
+*.keystore
+*.jks
+key.properties
 
 # temp files
 .modified
