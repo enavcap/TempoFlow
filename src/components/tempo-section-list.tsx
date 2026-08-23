@@ -290,15 +290,15 @@ const TempoSectionList: React.FC = () => {
 
     // Only proceed with horizontal swipe logic
     if (!activeSwipe.isSwiping) {
-      if (Math.abs(deltaX) > HORIZONTAL_SWIPE_INIT_THRESHOLD && activeSwipe.isHorizontal !== false) {
+      if (Math.abs(deltaX) > HORIZONTAL_SWIPE_INIT_THRESHOLD) {
         setActiveSwipe(prev => ({ ...prev, isSwiping: true }));
         wasSwipedRef.current = true;
       } else {
         return;
       }
     }
-    
-    if (activeSwipe.isSwiping && activeSwipe.isHorizontal !== false) {
+
+    if (activeSwipe.isSwiping) {
       if (e.cancelable) e.preventDefault();
       const newOffset = Math.min(Math.max(0, deltaX), SWIPE_REVEAL_OFFSET_MAX);
       setActiveSwipe(prev => ({ ...prev, currentOffset: newOffset }));
@@ -367,7 +367,7 @@ const TempoSectionList: React.FC = () => {
         }
 
         if (!activeSwipe.isSwiping) {
-            if (Math.abs(deltaX) > HORIZONTAL_SWIPE_INIT_THRESHOLD && activeSwipe.isHorizontal !== false) {
+            if (Math.abs(deltaX) > HORIZONTAL_SWIPE_INIT_THRESHOLD) {
                 setActiveSwipe(prev => ({ ...prev, isSwiping: true }));
                 wasSwipedRef.current = true;
             } else {
@@ -375,7 +375,7 @@ const TempoSectionList: React.FC = () => {
             }
         }
 
-        if (activeSwipe.isSwiping && activeSwipe.isHorizontal !== false) {
+        if (activeSwipe.isSwiping) {
             if (ev.cancelable) ev.preventDefault();
             const newOffset = Math.min(Math.max(0, deltaX), SWIPE_REVEAL_OFFSET_MAX);
             setActiveSwipe(prev => ({ ...prev, currentOffset: newOffset }));
@@ -463,7 +463,7 @@ const TempoSectionList: React.FC = () => {
                   )}
                   
                 <div
-                  ref={el => sectionItemRefs.current[section.id] = el}
+                  ref={el => { sectionItemRefs.current[section.id] = el; }}
                   data-section-id={section.id}
                   className={cn(
                     "relative rounded-lg overflow-visible transition-all duration-200", 

@@ -8,7 +8,7 @@ import PlaybackControls from '@/components/playback-controls';
 import TempoSectionList from '@/components/tempo-section-list';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Settings, Library, Info, Loader2, Eraser, Save, PlusCircle } from 'lucide-react';
+import { Settings, Library, Info, Loader2, Eraser, Save, PlusCircle, Undo, Redo } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -289,6 +289,10 @@ function HomePage() {
     updatePresetMetadata,
     savePreset: contextSavePreset,
     defaultPlaybackSettings,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = context;
   const { toast } = useToast();
 
@@ -572,6 +576,34 @@ function HomePage() {
           </div>
         </div>
       </main>
+
+      {/* Undo/Redo Buttons - Bottom Left */}
+      <div className="fixed bottom-6 left-6 z-50 flex items-center space-x-2">
+        <Button
+          id="undo-button"
+          onClick={undo}
+          disabled={!canUndo}
+          variant="secondary"
+          size="icon"
+          className="w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-lg transition-all hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Undo last action"
+          title="Undo"
+        >
+          <Undo className="h-5 w-5 sm:h-6 sm:w-6" />
+        </Button>
+        <Button
+          id="redo-button"
+          onClick={redo}
+          disabled={!canRedo}
+          variant="secondary"
+          size="icon"
+          className="w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-lg transition-all hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Redo last action"
+          title="Redo"
+        >
+          <Redo className="h-5 w-5 sm:h-6 sm:w-6" />
+        </Button>
+      </div>
 
       {/* Add Section Button - Bottom Center */}
       <Button

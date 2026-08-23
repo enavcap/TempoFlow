@@ -233,9 +233,9 @@ const BeatVisualization: React.FC = () => {
     
     tempoInteractionStateRef.current = 'idle';
 
-    window.removeEventListener('mousemove', handleTempoGestureMove, { passive: false });
+    window.removeEventListener('mousemove', handleTempoGestureMove);
     window.removeEventListener('mouseup', handleTempoGestureEnd);
-    window.removeEventListener('touchmove', handleTempoGestureMove, { passive: false });
+    window.removeEventListener('touchmove', handleTempoGestureMove);
     window.removeEventListener('touchend', handleTempoGestureEnd);
   }, [handleTempoGestureMove, isTempoIndicatorPersistent]);
 
@@ -355,9 +355,9 @@ const BeatVisualization: React.FC = () => {
     setIsBeatsGestureActive(false);
     beatsInteractionStateRef.current = 'idle';
 
-    window.removeEventListener('mousemove', handleBeatsGestureMove, { passive: false });
+    window.removeEventListener('mousemove', handleBeatsGestureMove);
     window.removeEventListener('mouseup', handleBeatsGestureEnd);
-    window.removeEventListener('touchmove', handleBeatsGestureMove, { passive: false });
+    window.removeEventListener('touchmove', handleBeatsGestureMove);
     window.removeEventListener('touchend', handleBeatsGestureEnd);
   }, [handleBeatsGestureMove]);
 

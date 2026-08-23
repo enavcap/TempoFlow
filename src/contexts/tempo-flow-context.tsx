@@ -1,6 +1,6 @@
 
 "use client";
-import type { Preset, TempoSection, TimeSignature, Folder, Subdivision, SoundSet, DefaultPlaybackSettings, PrecountProgress, TempoFlowContextType } from '@/lib/types';
+import type { Preset, TempoSection, TimeSignature, Folder, Subdivision, SoundSet, DefaultPlaybackSettings, PrecountProgress, TempoFlowContextType, HistoryState } from '@/lib/types';
 import React, { createContext, useContext, useState, ReactNode, Dispatch, SetStateAction, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid'; // For generating unique IDs
 import { SECTION_COLORS, DEFAULT_TEMPO, DEFAULT_TIME_SIGNATURE, DEFAULT_SUBDIVISION, DEFAULT_MEASURES, TIME_SIGNATURES, DEFAULT_SOUND_SET_ID, PRECOUNT_SOUND_SETS, DEFAULT_PRECOUNT_SOUND_SET_ID, SOUND_SETS } from '@/lib/constants';
@@ -23,6 +23,11 @@ export const TempoFlowProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     sectionsRef.current = sections;
   }, [sections]);
+
+  // History management
+  const [history, setHistory] = useState<HistoryState[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const isUndoRedoAction = useRef(false);
 
   const [presets, setPresets] = useState<Preset[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -71,6 +76,64 @@ export const TempoFlowProvider = ({ children }: { children: ReactNode }) => {
   
   const { toast } = useToast();
 
+  // Save history state when sections or default settings change
+  useEffect(() => {
+    if (isUndoRedoAction.current) {
+      isUndoRedoAction.current = false;
+      return;
+    }
+
+    const newHistoryState: HistoryState = {
+      sections: JSON.parse(JSON.stringify(sections)),
+      defaultPlaybackSettings: JSON.parse(JSON.stringify(defaultPlaybackSettings)),
+      activeSectionId,
+    };
+
+    // Only add to history if something actually changed
+    if (historyIndex === -1 || 
+        JSON.stringify(newHistoryState) !== JSON.stringify(history[historyIndex])) {
+      const newHistory = history.slice(0, historyIndex + 1);
+      newHistory.push(newHistoryState);
+      
+      // Limit history to 50 states
+      if (newHistory.length > 50) {
+        newHistory.shift();
+      } else {
+        setHistoryIndex(prev => prev + 1);
+      }
+      
+      setHistory(newHistory);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sections, defaultPlaybackSettings, activeSectionId]);
+
+  const undo = useCallback(() => {
+    if (historyIndex > 0) {
+      isUndoRedoAction.current = true;
+      const previousState = history[historyIndex - 1];
+      setSections(JSON.parse(JSON.stringify(previousState.sections)));
+      setDefaultPlaybackSettingsState(JSON.parse(JSON.stringify(previousState.defaultPlaybackSettings)));
+      setActiveSectionIdState(previousState.activeSectionId);
+      setHistoryIndex(prev => prev - 1);
+      setActivePresetIdState(null);
+    }
+  }, [historyIndex, history]);
+
+  const redo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      isUndoRedoAction.current = true;
+      const nextState = history[historyIndex + 1];
+      setSections(JSON.parse(JSON.stringify(nextState.sections)));
+      setDefaultPlaybackSettingsState(JSON.parse(JSON.stringify(nextState.defaultPlaybackSettings)));
+      setActiveSectionIdState(nextState.activeSectionId);
+      setHistoryIndex(prev => prev + 1);
+      setActivePresetIdState(null);
+    }
+  }, [historyIndex, history]);
+
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
+
   const firstSection = sectionsRef.current.length > 0 ? sectionsRef.current[0] : undefined;
   const firstSectionRef = useRef(firstSection);
    useEffect(() => {
@@ -109,6 +172,11 @@ export const TempoFlowProvider = ({ children }: { children: ReactNode }) => {
     setIsCurrentlyPrecounting(false);
     setPrecountProgress({ bar: 0, beat: 0, tick: 0 });
     setPrecountTargetSectionId(null);
+    
+    // Clear undo/redo history
+    setHistory([]);
+    setHistoryIndex(-1);
+    
     toast({
       title: "New Flow Created",
       description: "Workspace reset to default flow.",
@@ -306,6 +374,9 @@ export const TempoFlowProvider = ({ children }: { children: ReactNode }) => {
   }, [activePresetId]);
 
 
+  const normalizeEndTempo = (value: unknown): number | undefined =>
+    value === '' || value === null || value === undefined ? undefined : Number(value);
+
   const addSection = useCallback((section?: Partial<TempoSection>) => {
     const wasInDefaultModeOrEmpty = sectionsRef.current.length === 0;
     const currentDefaultSettings = defaultPlaybackSettingsRef.current;
@@ -321,9 +392,9 @@ export const TempoFlowProvider = ({ children }: { children: ReactNode }) => {
       id: uuidv4(),
       name: section?.name || `Section ${currentSectionsCount + 1}`,
       tempo: section?.tempo ?? currentDefaultSettings.tempo ?? DEFAULT_TEMPO,
-      endTempo: section?.hasOwnProperty('endTempo') 
-                ? (section.endTempo === '' || section.endTempo === null || section.endTempo === undefined ? undefined : Number(section.endTempo)) 
-                : (currentDefaultSettings.hasOwnProperty('endTempo') ? (currentDefaultSettings.endTempo === '' || currentDefaultSettings.endTempo === null || currentDefaultSettings.endTempo === undefined ? undefined : Number(currentDefaultSettings.endTempo)) : undefined),
+      endTempo: section?.hasOwnProperty('endTempo')
+                ? normalizeEndTempo(section.endTempo)
+                : (currentDefaultSettings.hasOwnProperty('endTempo') ? normalizeEndTempo(currentDefaultSettings.endTempo) : undefined),
       timeSignature: section?.timeSignature ?? currentDefaultSettings.timeSignature ?? DEFAULT_TIME_SIGNATURE,
       subdivision: section?.subdivision ?? currentDefaultSettings.subdivision ?? DEFAULT_SUBDIVISION,
       color: section?.color || SECTION_COLORS[currentSectionsCount % SECTION_COLORS.length],
@@ -406,7 +477,7 @@ export const TempoFlowProvider = ({ children }: { children: ReactNode }) => {
     } else {
         sectionsToSave = JSON.parse(JSON.stringify(currentSectionsVal.map(s => {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { createdAt, updatedAt, ...rest } = s; // Omit previous timestamps
+          const { createdAt, updatedAt, ...rest } = s as TempoSection & { createdAt?: unknown; updatedAt?: unknown }; // Omit previous timestamps (legacy data may carry these)
           return rest;
         }))); 
     }
@@ -453,6 +524,11 @@ export const TempoFlowProvider = ({ children }: { children: ReactNode }) => {
       setSections(newSections);
       setActivePresetIdState(preset.id); 
       setIsPlaying(false);
+      
+      // Clear undo/redo history when loading a preset
+      setHistory([]);
+      setHistoryIndex(-1);
+      
       if (newSections.length > 0) {
         // setActiveSectionIdState will be handled by the useEffect watching sections and activeSectionId
         // resetPlaybackPosition(newSections[0].id);
@@ -466,7 +542,7 @@ export const TempoFlowProvider = ({ children }: { children: ReactNode }) => {
 
   const deletePreset = (id: string) => {
     setPresets(prev => prev.filter(p => p.id !== id));
-    if (id === activePresetIdRef.current) { // Use ref for current value
+    if (id === activePresetId) {
       setActivePresetIdState(null); 
     }
   };
@@ -540,6 +616,7 @@ export const TempoFlowProvider = ({ children }: { children: ReactNode }) => {
   return (
     <TempoFlowContext.Provider value={{
       sections, setSections, addSection, updateSection, deleteSection, reorderSections,
+      undo, redo, canUndo, canRedo,
       presets, setPresets, savePreset, loadPreset, deletePreset, importPresets, updatePresetMetadata,
       folders, setFolders, addFolder, deleteFolder,
       activeSectionId, setActiveSectionId,

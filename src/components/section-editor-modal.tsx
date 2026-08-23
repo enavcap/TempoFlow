@@ -49,7 +49,7 @@ const sectionSchema = z.object({
   measures: z.coerce.number().min(1, "Must have at least 1 measure").max(128, "Cannot exceed 128 measures"),
   accentedBeats: z.array(z.number()).optional(),
   isLoopable: z.boolean().optional(),
-}).refine(data => !data.endTempo || data.endTempo === '' || (data.endTempo >= 20 && data.endTempo <= 200), {
+}).refine(data => !data.endTempo || (data.endTempo >= 20 && data.endTempo <= 200), {
     message: "End tempo must be between 20 and 200 BPM if specified.",
     path: ["endTempo"],
 });

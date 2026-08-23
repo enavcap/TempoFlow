@@ -52,9 +52,10 @@ const AppTour: React.FC<AppTourProps> = ({
       const step = tourSteps[currentStep];
       removeCurrentHighlight();
 
-      if (step.targetElementSelector) {
+      const targetElementSelector = step.targetElementSelector;
+      if (targetElementSelector) {
         animationFrameId = requestAnimationFrame(() => {
-          const targetElement = document.querySelector(step.targetElementSelector) as HTMLElement;
+          const targetElement = document.querySelector(targetElementSelector) as HTMLElement;
           if (targetElement) {
             targetElement.classList.add(HIGHLIGHT_CLASS);
             targetElement.style.pointerEvents = 'auto'; 

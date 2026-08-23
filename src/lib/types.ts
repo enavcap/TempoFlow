@@ -1,4 +1,6 @@
 
+import type { Dispatch, SetStateAction } from 'react';
+
 export type TimeSignature = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12";
 export type Subdivision = "Quarter" | "Eighth" | "Triplet" | "Sixteenth";
 
@@ -66,6 +68,12 @@ export interface PrecountProgress {
   tick: number;
 }
 
+export interface HistoryState {
+  sections: TempoSection[];
+  defaultPlaybackSettings: DefaultPlaybackSettings;
+  activeSectionId: string | null;
+}
+
 export interface TempoFlowContextType {
   sections: TempoSection[];
   setSections: Dispatch<SetStateAction<TempoSection[]>>;
@@ -73,6 +81,10 @@ export interface TempoFlowContextType {
   updateSection: (id: string, updates: Partial<TempoSection>) => void;
   deleteSection: (id: string) => void;
   reorderSections: (startIndex: number, endIndex: number) => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
   
   presets: Preset[];
   setPresets: Dispatch<SetStateAction<Preset[]>>;

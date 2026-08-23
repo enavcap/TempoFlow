@@ -434,7 +434,7 @@ const PlaybackControls: React.FC = () => {
     const currentFirstSectionVal = firstSectionRef.current;
     const currentActiveSectionIdVal = activeSectionIdRef.current;
 
-    let sectionPropsForTiming: TempoSection | (DefaultPlaybackSettings & { measures: number, id?: string }) | undefined;
+    let sectionPropsForTiming: TempoSection | (DefaultPlaybackSettings & { measures?: number, id?: string }) | undefined;
     let isCurrentTickInDefaultMode = false;
 
     if (isCurrentlyPrecountingRef.current) {
@@ -501,7 +501,7 @@ const PlaybackControls: React.FC = () => {
       const currentFirstSectionVal = firstSectionRef.current;
       
       // Recalculate timing parameters to handle tempo changes
-      let sectionPropsForTiming: TempoSection | (DefaultPlaybackSettings & { measures: number, id?: string }) | undefined;
+      let sectionPropsForTiming: TempoSection | (DefaultPlaybackSettings & { measures?: number, id?: string }) | undefined;
       let isCurrentTickInDefaultMode = false;
 
       if (currentIsPrecounting) {
@@ -843,7 +843,7 @@ const PlaybackControls: React.FC = () => {
 
     window.removeEventListener('mousemove', handleVolumePressMove);
     window.removeEventListener('mouseup', handleVolumePressEnd);
-    window.removeEventListener('touchmove', handleVolumePressMove, { passive: false });
+    window.removeEventListener('touchmove', handleVolumePressMove);
     window.removeEventListener('touchend', handleVolumePressEnd);
 
     if (wasPressing && finalInteractionState === 'pressing') {
