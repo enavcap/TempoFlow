@@ -9,6 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 
 const TempoFlowContext = createContext<TempoFlowContextType | undefined>(undefined);
 
+const HISTORY_DEBOUNCE_MS = 400;
+
 const initialDefaultPlaybackSettings: DefaultPlaybackSettings = {
   tempo: DEFAULT_TEMPO,
   timeSignature: DEFAULT_TIME_SIGNATURE,
@@ -76,34 +78,43 @@ export const TempoFlowProvider = ({ children }: { children: ReactNode }) => {
   
   const { toast } = useToast();
 
-  // Save history state when sections or default settings change
+  // Save history state when sections or default settings change.
+  // Debounced: continuous updates (e.g. dragging tempo while the metronome is
+  // playing) would otherwise run this JSON snapshot/compare on every pointer
+  // event, competing with the setTimeout-driven audio scheduler for the main
+  // thread. Waiting for a quiet period also gives more meaningful undo steps
+  // (one entry per gesture instead of one per pixel of movement).
   useEffect(() => {
     if (isUndoRedoAction.current) {
       isUndoRedoAction.current = false;
       return;
     }
 
-    const newHistoryState: HistoryState = {
-      sections: JSON.parse(JSON.stringify(sections)),
-      defaultPlaybackSettings: JSON.parse(JSON.stringify(defaultPlaybackSettings)),
-      activeSectionId,
-    };
+    const timeoutId = setTimeout(() => {
+      const newHistoryState: HistoryState = {
+        sections: JSON.parse(JSON.stringify(sections)),
+        defaultPlaybackSettings: JSON.parse(JSON.stringify(defaultPlaybackSettings)),
+        activeSectionId,
+      };
 
-    // Only add to history if something actually changed
-    if (historyIndex === -1 || 
-        JSON.stringify(newHistoryState) !== JSON.stringify(history[historyIndex])) {
-      const newHistory = history.slice(0, historyIndex + 1);
-      newHistory.push(newHistoryState);
-      
-      // Limit history to 50 states
-      if (newHistory.length > 50) {
-        newHistory.shift();
-      } else {
-        setHistoryIndex(prev => prev + 1);
+      // Only add to history if something actually changed
+      if (historyIndex === -1 ||
+          JSON.stringify(newHistoryState) !== JSON.stringify(history[historyIndex])) {
+        const newHistory = history.slice(0, historyIndex + 1);
+        newHistory.push(newHistoryState);
+
+        // Limit history to 50 states
+        if (newHistory.length > 50) {
+          newHistory.shift();
+        } else {
+          setHistoryIndex(prev => prev + 1);
+        }
+
+        setHistory(newHistory);
       }
-      
-      setHistory(newHistory);
-    }
+    }, HISTORY_DEBOUNCE_MS);
+
+    return () => clearTimeout(timeoutId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sections, defaultPlaybackSettings, activeSectionId]);
 

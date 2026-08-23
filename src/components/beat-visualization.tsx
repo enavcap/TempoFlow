@@ -34,6 +34,8 @@ const BeatVisualization: React.FC = () => {
   const activeEditingTargetRef = useRef<'start' | 'end' | null>(null);
   const lastTempoTapTimeRef = useRef<number>(0);
   const isTouchInteractionRef = useRef<boolean>(false);
+  const pendingTempoUpdateRef = useRef<{ target: 'start' | 'end'; value: number } | null>(null);
+  const tempoRafIdRef = useRef<number | null>(null);
 
   // Beats Gesture State
   const [isBeatsGestureActive, setIsBeatsGestureActive] = useState(false);
@@ -126,6 +128,16 @@ const BeatVisualization: React.FC = () => {
   const subdivisionDisabled = isTempoGestureActive || isBeatsGestureActive;
   const beatClickDisabled = isCurrentlyPrecounting || !sectionToUseForDisplay || isTempoGestureActive || isBeatsGestureActive || isSubdivisionGestureActive;
 
+  // Cancel any pending rAF-throttled tempo update on unmount
+  useEffect(() => {
+    return () => {
+      if (tempoRafIdRef.current !== null) {
+        cancelAnimationFrame(tempoRafIdRef.current);
+        tempoRafIdRef.current = null;
+      }
+    };
+  }, []);
+
   // Click outside handler for persistent tempo indicator
   useEffect(() => {
     if (!isTempoIndicatorPersistent || !isTempoGestureActive) return;
@@ -187,6 +199,32 @@ const BeatVisualization: React.FC = () => {
   };
 
   // --- Tempo Gesture Handlers ---
+  // Applies at most one tempo update per animation frame. Dragging fires
+  // mousemove/touchmove far faster than the screen can repaint (and faster
+  // than the metronome's setTimeout-driven audio scheduler wants to share
+  // the main thread with), so we coalesce a burst of pointer events into a
+  // single state update per frame instead of one per event.
+  const flushTempoUpdate = useCallback(() => {
+    tempoRafIdRef.current = null;
+    const pending = pendingTempoUpdateRef.current;
+    if (!pending || !sectionToUseForDisplay) return;
+    pendingTempoUpdateRef.current = null;
+
+    if (isDefaultPlaybackMode) {
+      if (pending.target === 'start') {
+        setDefaultPlaybackSettings(prev => prev.tempo === pending.value ? prev : { ...prev, tempo: pending.value });
+      } else {
+        setDefaultPlaybackSettings(prev => prev.endTempo === pending.value ? prev : { ...prev, endTempo: pending.value });
+      }
+    } else if (sectionToUseForDisplay.id !== 'default-playback-section-precount-target' && sectionToUseForDisplay.id !== 'precount-default-display') {
+      if (pending.target === 'start') {
+        updateSection(sectionToUseForDisplay.id, { tempo: pending.value });
+      } else {
+        updateSection(sectionToUseForDisplay.id, { endTempo: pending.value });
+      }
+    }
+  }, [sectionToUseForDisplay, updateSection, setDefaultPlaybackSettings, isDefaultPlaybackMode]);
+
   const handleTempoGestureMove = useCallback((event: MouseEvent | TouchEvent) => {
     if (tempoInteractionStateRef.current === 'idle' || !sectionToUseForDisplay || !activeEditingTargetRef.current) {
       return;
@@ -205,39 +243,38 @@ const BeatVisualization: React.FC = () => {
     let newTempoValue = Math.round(tempoInitialTempoRef.current + tempoChange);
     newTempoValue = Math.max(20, Math.min(200, newTempoValue));
 
-    if (isDefaultPlaybackMode) {
-      if (activeEditingTargetRef.current === 'start') {
-        setDefaultPlaybackSettings(prev => ({ ...prev, tempo: newTempoValue }));
-      } else if (activeEditingTargetRef.current === 'end') {
-        setDefaultPlaybackSettings(prev => ({ ...prev, endTempo: newTempoValue }));
-      }
-    } else if (sectionToUseForDisplay && sectionToUseForDisplay.id !== 'default-playback-section-precount-target' && sectionToUseForDisplay.id !== 'precount-default-display') {
-      if (activeEditingTargetRef.current === 'start') {
-        updateSection(sectionToUseForDisplay.id, { tempo: newTempoValue });
-      } else if (activeEditingTargetRef.current === 'end') {
-        updateSection(sectionToUseForDisplay.id, { endTempo: newTempoValue });
-      }
+    pendingTempoUpdateRef.current = { target: activeEditingTargetRef.current, value: newTempoValue };
+    if (tempoRafIdRef.current === null) {
+      tempoRafIdRef.current = requestAnimationFrame(flushTempoUpdate);
     }
-  }, [sectionToUseForDisplay, updateSection, setDefaultPlaybackSettings, isDefaultPlaybackMode]);
+  }, [sectionToUseForDisplay, flushTempoUpdate]);
 
   const handleTempoGestureEnd = useCallback(() => {
     if (tempoInteractionStateRef.current !== 'idle') {
         document.body.style.overflow = '';
     }
-    
+
+    // Cancel any pending frame and apply the final value immediately so the
+    // last pointer position is never dropped when the gesture ends.
+    if (tempoRafIdRef.current !== null) {
+      cancelAnimationFrame(tempoRafIdRef.current);
+      tempoRafIdRef.current = null;
+    }
+    flushTempoUpdate();
+
     // Don't close the indicator if it's in persistent mode
     if (!isTempoIndicatorPersistent) {
       setIsTempoGestureActive(false);
       activeEditingTargetRef.current = null;
     }
-    
+
     tempoInteractionStateRef.current = 'idle';
 
     window.removeEventListener('mousemove', handleTempoGestureMove);
     window.removeEventListener('mouseup', handleTempoGestureEnd);
     window.removeEventListener('touchmove', handleTempoGestureMove);
     window.removeEventListener('touchend', handleTempoGestureEnd);
-  }, [handleTempoGestureMove, isTempoIndicatorPersistent]);
+  }, [handleTempoGestureMove, isTempoIndicatorPersistent, flushTempoUpdate]);
 
   const handleTempoIncrement = useCallback((amount: number) => {
     if (!sectionToUseForDisplay || !activeEditingTargetRef.current) return;
