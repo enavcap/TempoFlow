@@ -11,10 +11,17 @@ import { useMetronomeAudio } from '@/hooks/useMetronomeAudio';
 import VolumeIndicator from './volume-indicator';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 const VOLUME_SWIPE_SENSITIVITY = 100;
 const DRAG_THRESHOLD = 10; // Pixels to consider a swipe (for volume)
 const VOLUME_CLICK_VS_SWIPE_TIMEOUT = 200; // ms
+
+// If the setTimeout-driven tick loop falls this far behind wall-clock time
+// (tab backgrounded, screen locked, long GC pause), don't try to "catch up"
+// by firing several ticks back-to-back at delay 0 — that produces an audible
+// burst of overlapping clicks. Resync to now instead.
+const RESYNC_THRESHOLD_MS = 250;
 
 const PrecountIcon = ({ bars, enabled }: { bars: number; enabled: boolean }) => {
   return (
@@ -68,6 +75,7 @@ const PlaybackControls: React.FC = () => {
     defaultPlaybackSettings,
     firstSection: contextFirstSection
   } = context;
+  const { toast } = useToast();
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const nextTickTimeRef = useRef<number>(0); // Track when next tick should occur (absolute timestamp)
@@ -653,7 +661,14 @@ const PlaybackControls: React.FC = () => {
         // Maintain steady timing by adding exact duration
         nextTickTimeRef.current += subdivisionDurationMs;
       }
-      
+
+      // If we've fallen far behind wall-clock time, resync instead of
+      // chasing the missed ticks one by one (see RESYNC_THRESHOLD_MS above).
+      const behindByMs = performance.now() - nextTickTimeRef.current;
+      if (behindByMs > RESYNC_THRESHOLD_MS) {
+        nextTickTimeRef.current = performance.now() + subdivisionDurationMs;
+      }
+
       // Calculate delay for next tick with drift compensation
       const delay = Math.max(0, nextTickTimeRef.current - performance.now());
       timeoutRef.current = setTimeout(scheduleTick, delay);
@@ -675,26 +690,31 @@ const PlaybackControls: React.FC = () => {
   ]);
 
 
+  // Shared by the manual pause button and the auto-pause-on-background
+  // handler below, so both paths reset timing state identically.
+  const pausePlayback = useCallback(() => {
+    setIsPlaying(false);
+    if (isCurrentlyPrecountingRef.current) {
+      precountStateMachine('reset');
+    }
+    // Reset timing refs immediately
+    nextTickTimeRef.current = 0;
+    startTimeRef.current = 0;
+    lastTempoRef.current = 0;
+    // Reset playback position
+    startTransition(() => {
+      setCurrentBeat(0);
+      setCurrentMeasure(0);
+      setCurrentSubdivisionTick(0);
+    });
+  }, [setIsPlaying, precountStateMachine, setCurrentBeat, setCurrentMeasure, setCurrentSubdivisionTick]);
+
   const handlePlayPause = useCallback(async () => {
     await resumeAudioContext();
     const currentSections = sectionsRef.current;
 
     if (isPlaying) {
-      setIsPlaying(false);
-      if (isCurrentlyPrecounting) {
-        precountStateMachine('reset');
-      }
-      // Reset timing refs immediately
-      nextTickTimeRef.current = 0;
-      startTimeRef.current = 0;
-      lastTempoRef.current = 0;
-      // Reset playback position
-      startTransition(() => {
-        setCurrentBeat(0);
-        setCurrentMeasure(0);
-        setCurrentSubdivisionTick(0);
-      });
-
+      pausePlayback();
     } else {
       let targetIdForPlaybackLogic: string | null;
       let targetIdForPrecountLogic: string | null;
@@ -741,8 +761,30 @@ const PlaybackControls: React.FC = () => {
   }, [
     isPlaying, resumeAudioContext, setIsPlaying, setCurrentBeat, setCurrentMeasure, setCurrentSubdivisionTick,
     isPrecountEnabled, precountBars, setIsCurrentlyPrecounting, setPrecountProgress,
-    setActiveSectionId, setPrecountTargetSectionId, isCurrentlyPrecounting // Added isCurrentlyPrecounting
+    setActiveSectionId, setPrecountTargetSectionId, isCurrentlyPrecounting, pausePlayback
   ]);
+
+  // Auto-pause when the app/tab is backgrounded (screen locked, app
+  // switched, tab hidden). Browsers throttle or fully suspend setTimeout in
+  // that state, so the tick loop can't keep accurate time regardless of how
+  // it's implemented. Rather than let it silently drift or burst-fire catch
+  // up ticks when foregrounded again, stop cleanly and tell the user.
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        pausePlayback();
+        toast({
+          title: "Metronome paused",
+          description: "Playback stopped because the app went to the background.",
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isPlaying, pausePlayback, toast]);
 
   const handleStop = useCallback(() => {
     setIsPlaying(false);
