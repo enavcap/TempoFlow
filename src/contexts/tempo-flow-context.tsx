@@ -9,7 +9,13 @@ import { useToast } from "@/hooks/use-toast";
 
 const TempoFlowContext = createContext<TempoFlowContextType | undefined>(undefined);
 
-const HISTORY_DEBOUNCE_MS = 400;
+// Shared debounce window for work that's expensive to run on every state
+// change but only needs to reflect the settled value (undo-history snapshots,
+// localStorage persistence). Continuous updates -- e.g. dragging tempo while
+// the metronome is playing -- would otherwise run this synchronous JSON work
+// on every pointer event, competing with the setTimeout-driven audio
+// scheduler for the main thread.
+const STATE_CHANGE_DEBOUNCE_MS = 400;
 
 const initialDefaultPlaybackSettings: DefaultPlaybackSettings = {
   tempo: DEFAULT_TEMPO,
@@ -112,7 +118,7 @@ export const TempoFlowProvider = ({ children }: { children: ReactNode }) => {
 
         setHistory(newHistory);
       }
-    }, HISTORY_DEBOUNCE_MS);
+    }, STATE_CHANGE_DEBOUNCE_MS);
 
     return () => clearTimeout(timeoutId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -321,16 +327,38 @@ export const TempoFlowProvider = ({ children }: { children: ReactNode }) => {
 
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window === 'undefined') return;
+    const timeoutId = setTimeout(() => {
       localStorage.setItem('tempoFlowSections', JSON.stringify(sections));
-    }
+    }, STATE_CHANGE_DEBOUNCE_MS);
+    return () => clearTimeout(timeoutId);
   }, [sections]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window === 'undefined') return;
+    const timeoutId = setTimeout(() => {
       localStorage.setItem('tempoFlowDefaultPlaybackSettings', JSON.stringify(defaultPlaybackSettings));
-    }
+    }, STATE_CHANGE_DEBOUNCE_MS);
+    return () => clearTimeout(timeoutId);
   }, [defaultPlaybackSettings]);
+
+  // The two debounced writes above skip the trailing edit if the page is
+  // closed within the debounce window. Flush immediately when the app is
+  // hidden/closed so nothing is lost.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const flush = () => {
+      localStorage.setItem('tempoFlowSections', JSON.stringify(sectionsRef.current));
+      localStorage.setItem('tempoFlowDefaultPlaybackSettings', JSON.stringify(defaultPlaybackSettingsRef.current));
+    };
+    const handleVisibilityChange = () => { if (document.hidden) flush(); };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', flush);
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {

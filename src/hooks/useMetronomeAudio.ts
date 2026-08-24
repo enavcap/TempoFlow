@@ -7,6 +7,10 @@ import { SOUND_SETS, DEFAULT_SOUND_SET_ID, PRECOUNT_SOUND_SETS, DEFAULT_PRECOUNT
 import { useTempoFlow } from '@/contexts/tempo-flow-context';
 
 
+// Short fade applied to master gain changes (volume slider, mute toggle) so
+// they never land in the middle of a note's envelope as an audible click.
+const GAIN_RAMP_SECONDS = 0.03;
+
 interface MetronomeAudioProps {
   isPlaying: boolean;
   activeSection: TempoSection | undefined; // Could be the 'default-playback-section' virtual section
@@ -30,25 +34,36 @@ export function useMetronomeAudio({
   
   const { selectedSoundSetId, precountProgress, selectedPrecountSoundSetId, defaultPlaybackSettings } = useTempoFlow(); 
 
-  const [volume, setInternalVolume] = useState(0.75); 
+  const [volume, setInternalVolume] = useState(0.75);
   const [isMuted, setIsMuted] = useState(false);
 
+  const applyMasterGain = useCallback((targetValue: number) => {
+    const context = audioContextRef.current;
+    const gainNode = masterGainNodeRef.current;
+    if (!gainNode || !context || context.state !== 'running') return;
+    const now = context.currentTime;
+    gainNode.gain.cancelScheduledValues(now);
+    gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+    gainNode.gain.linearRampToValueAtTime(targetValue, now + GAIN_RAMP_SECONDS);
+  }, []);
+
   useEffect(() => {
-    if (masterGainNodeRef.current && audioContextRef.current && audioContextRef.current.state === 'running') {
-      masterGainNodeRef.current.gain.setValueAtTime(
-        isMuted ? 0 : volume,
-        audioContextRef.current.currentTime
-      );
-    }
-  }, [volume, isMuted]);
+    applyMasterGain(isMuted ? 0 : volume);
+  }, [volume, isMuted, applyMasterGain]);
 
   const resumeAudioContext = useCallback(async () => {
     if (typeof window === 'undefined') return;
 
-    if (!audioContextRef.current) {
+    // iOS Safari and some WebViews force-close the AudioContext after
+    // prolonged inactivity/backgrounding. A closed context can never be
+    // resumed, so without this check every future tick would silently fail
+    // (playSound bails out because state !== 'running') while the UI still
+    // looks like it's playing.
+    if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
       audioContextRef.current = new window.AudioContext();
+      masterGainNodeRef.current = null; // Belonged to the old context; must be recreated below.
     }
-    
+
     if (!masterGainNodeRef.current && audioContextRef.current) {
       masterGainNodeRef.current = audioContextRef.current.createGain();
       masterGainNodeRef.current.connect(audioContextRef.current.destination);
@@ -58,13 +73,8 @@ export function useMetronomeAudio({
       await audioContextRef.current.resume();
     }
 
-    if (masterGainNodeRef.current && audioContextRef.current) { 
-      masterGainNodeRef.current.gain.setValueAtTime(
-        isMuted ? 0 : volume,
-        audioContextRef.current.currentTime
-      );
-    }
-  }, [volume, isMuted]);
+    applyMasterGain(isMuted ? 0 : volume);
+  }, [volume, isMuted, applyMasterGain]);
 
   const playSound = useCallback((time: number, type: 'accent' | 'beat' | 'sub') => {
     if (!audioContextRef.current || !masterGainNodeRef.current || audioContextRef.current.state !== 'running') {
@@ -192,21 +202,16 @@ export function useMetronomeAudio({
   const setVolume = useCallback((level: number) => {
     const newVolume = Math.max(0, Math.min(1, level));
     setInternalVolume(newVolume);
-    
+
     // Update gain immediately if audio context is available
-    if (masterGainNodeRef.current && audioContextRef.current && audioContextRef.current.state === 'running') {
-      masterGainNodeRef.current.gain.setValueAtTime(
-        newVolume === 0 ? 0 : newVolume,
-        audioContextRef.current.currentTime
-      );
-    }
-    
-    if (isMuted && newVolume > 0) { 
+    applyMasterGain(newVolume);
+
+    if (isMuted && newVolume > 0) {
       setIsMuted(false);
     } else if (newVolume === 0 && !isMuted) { 
       setIsMuted(true);
     }
-  }, [isMuted]);
+  }, [isMuted, applyMasterGain]);
 
   const toggleMute = useCallback(() => {
     setIsMuted(prev => !prev);
