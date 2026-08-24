@@ -321,14 +321,34 @@ const TempoSectionList: React.FC = () => {
       }, 300);
     } else {
       setActiveSwipe({ id: null, startX: 0, startY: 0, currentOffset: 0, isSwiping: false, isHorizontal: null });
-      if (wasASwipe) { 
+      if (wasASwipe) {
         setTimeout(() => { wasSwipedRef.current = false; }, 0);
       }
     }
   };
 
+  // The browser sends touchcancel (instead of touchend) once it decides a
+  // touch is a scroll and takes it over -- which is the normal case for a
+  // vertical drag over a section. Without resetting here, activeSwipe.id
+  // stays stuck on that section, and the handleTouchStart guard above then
+  // blocks every OTHER section from starting a fresh gesture (including a
+  // plain scroll) until that exact section is touched again.
+  const handleTouchCancel = () => {
+    if (!activeSwipe.id) return;
+    const wasASwipe = activeSwipe.isSwiping;
+    setActiveSwipe({ id: null, startX: 0, startY: 0, currentOffset: 0, isSwiping: false, isHorizontal: null });
+    if (wasASwipe) {
+      setTimeout(() => { wasSwipedRef.current = false; }, 0);
+    }
+  };
+
   const handleMouseDownForSwipe = (e: React.MouseEvent<HTMLDivElement>, sectionId: string) => {
     if (itemToDeleteAnim || (activeSwipe.id && activeSwipe.id !== sectionId) || e.button !== 0) return;
+
+    // Stop the browser's native text-selection drag from starting -- without
+    // this, dragging the mouse over the section card selects its text
+    // instead of (or in addition to) driving the swipe gesture below.
+    e.preventDefault();
 
     wasSwipedRef.current = false;
     setActiveSwipe({
@@ -504,9 +524,10 @@ const TempoSectionList: React.FC = () => {
                     onTouchStart={(e) => handleTouchStart(e, section.id)}
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
+                    onTouchCancel={handleTouchCancel}
                     onClick={() => handleSectionCardClick(section.id)}
                     className={cn(
-                      "relative p-3 sm:p-4 flex items-center justify-between z-10 rounded-md select-none", 
+                      "relative p-3 sm:p-4 flex items-center justify-between z-10 rounded-md select-none [-webkit-touch-callout:none]",
                       "bg-background",
                       (draggedItemId === section.id && !isBeingSwipedForDelete) || isBeingDeleted 
                         ? 'opacity-50 scale-95' 
